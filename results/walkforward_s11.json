@@ -1,0 +1,129 @@
+{
+  "schedule": [
+    {
+      "styles": [
+        "classic",
+        "stealth"
+      ],
+      "noise": 0.15
+    },
+    {
+      "styles": [
+        "classic",
+        "stealth"
+      ],
+      "noise": 0.15
+    },
+    {
+      "styles": [
+        "classic",
+        "stealth"
+      ],
+      "noise": 0.15
+    },
+    {
+      "styles": [
+        "classic",
+        "stealth",
+        "novel_ext"
+      ],
+      "noise": 0.3
+    },
+    {
+      "styles": [
+        "classic",
+        "stealth",
+        "novel_ext"
+      ],
+      "noise": 0.3
+    },
+    {
+      "styles": [
+        "classic",
+        "stealth",
+        "novel_ext"
+      ],
+      "noise": 0.3
+    },
+    {
+      "styles": [
+        "classic",
+        "stealth",
+        "novel_ext",
+        "wiper"
+      ],
+      "noise": 0.5
+    },
+    {
+      "styles": [
+        "classic",
+        "stealth",
+        "novel_ext",
+        "wiper"
+      ],
+      "noise": 0.5
+    },
+    {
+      "styles": [
+        "classic",
+        "stealth",
+        "novel_ext",
+        "wiper"
+      ],
+      "noise": 0.5
+    },
+    {
+      "styles": [
+        "classic",
+        "stealth",
+        "novel_ext",
+        "wiper"
+      ],
+      "noise": 0.5
+    }
+  ],
+  "seed": 11,
+  "folds": [
+    {
+      "fold": 5,
+      "test_bucket_styles": [
+        "classic",
+        "stealth",
+        "novel_ext"
+      ],
+      "test_noise": 0.3,
+      "v1_detection": 1.0,
+      "v2_detection": 1.0,
+      "v1_fp": 0.0,
+      "v2_fp": 0.0
+    },
+    {
+      "fold": 7,
+      "test_bucket_styles": [
+        "classic",
+        "stealth",
+        "novel_ext",
+        "wiper"
+      ],
+      "test_noise": 0.5,
+      "v1_detection": 1.0,
+      "v2_detection": 1.0,
+      "v1_fp": 0.0,
+      "v2_fp": 0.0
+    },
+    {
+      "fold": 9,
+      "test_bucket_styles": [
+        "classic",
+        "stealth",
+        "novel_ext",
+        "wiper"
+      ],
+      "test_noise": 0.5,
+      "v1_detection": 1.0,
+      "v2_detection": 1.0,
+      "v1_fp": 0.0,
+      "v2_fp": 0.0
+    }
+  ]
+}

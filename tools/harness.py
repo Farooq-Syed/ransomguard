@@ -76,6 +76,30 @@ def make_sessions(n_benign: int, n_ransom: int, seed: int, base_root: str,
     return sessions
 
 
+def make_mixed_sessions(n_benign: int, n_ransom: int, seed: int, base_root: str,
+                        styles: tuple = ("classic", "stealth", "novel_ext", "wiper"),
+                        noise: float = 0.4, n_files: int = 35, n_windows: int = 8) -> list[dict]:
+    """Near-real eval set: a mixture of attack styles (some never seen in training)
+    under a different seed and noise profile than training."""
+    rng = random.Random(seed)
+    sessions = []
+    idx = 0
+    for _ in range(n_benign):
+        root = os.path.join(base_root, f"b_{idx}")
+        sessions.append(build_session("benign", root, random.Random(rng.randrange(1 << 30)),
+                                      n_files=n_files, n_windows=n_windows, noise=noise))
+        idx += 1
+    for _ in range(n_ransom):
+        root = os.path.join(base_root, f"r_{idx}")
+        style = random.Random(rng.randrange(1 << 30)).choice(styles)
+        sessions.append(build_session("ransomware", root, random.Random(rng.randrange(1 << 30)),
+                                      n_files=n_files, n_windows=n_windows, noise=noise,
+                                      attack_style=style))
+        idx += 1
+    random.Random(seed + 1).shuffle(sessions)
+    return sessions
+
+
 def run_windows(session: dict, feed) -> list[dict]:
     """feed(batch, events) -> list of emitted levels for this window."""
     sandbox = session["sandbox"]

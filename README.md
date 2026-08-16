@@ -123,6 +123,8 @@ python train_v2.py
 python run_v2_test.py --seed 1337
 python run_compare.py --seed 1337            # clean scenario
 python run_compare.py --seed 1337 --prod-rates   # noisy benign + stealth
+python run_nearreal.py                       # shifted distribution, novel styles (charts in results/)
+python run_walkforward.py --seed 7           # temporal generalization (charts in results/)
 ```
 
 ### v2 model validation (20% holdout windows, 400 benign + 400 ransomware training sessions)
@@ -172,6 +174,49 @@ encode real signal: `max_entropy_mod`, `n_high_value_mod`, `mean_entropy_mod`, `
 Practical takeaway: run **both** engines side by side — v1 gives explainable rule-based alerts and
 emergency actions (quarantine/freeze); v2 adds ML-grounded precision that tolerates noisy benign
 environments without threshold hand-tuning.
+
+### Near-real-world evaluation (distribution shift, novel attack styles)
+
+Train v2 on the standard distribution (classic + stealth, seed 42) and test on a **shifted** set:
+a different seed, higher benign noise, and attack styles *never seen in training* — `novel_ext`
+(new ransom extensions + new note names) and `wiper` (an entropy-evading destructive variant that
+zero-fills files, deletes originals, and never renames or drops notes).
+
+Run: `python run_nearreal.py`  (results → `results/nearreal*.json`, `results/nearreal*.png`)
+
+| style (novel to the model) | v1 | v2 |
+|---|---|---|
+| classic | 100% | 100% |
+| stealth | 100% | 100% |
+| novel_ext (new exts/notes) | 100% | 100% |
+| wiper (entropy-evading) | 100% | 100% |
+| benign FP rate | 0.0% | 0.0% |
+
+Reproducible for seeds 2024 and 2025. Notable: the wiper is *not* caught by entropy — it is caught
+by **honeypot canaries, mass deletions, and process signals**. A wiper that also avoided decoys
+would likely slip through (known blind spot, see challenges #2/#5).
+
+### Walk-forward (temporal) evaluation
+
+A time-ordered corpus with an *evolving* distribution: early buckets = classic/stealth at low noise;
+later buckets progressively introduce novel-ext attacks, wipers, and heavier benign noise. For each
+fold, v2 is retrained **only on past buckets** and scored on the next (future) bucket; v1 is scored
+on the same bucket. This measures temporal generalization, not in-sample fit.
+
+Run: `python run_walkforward.py [--seed N]`  (results → `results/walkforward*.json`, `.png`)
+
+| fold → future bucket | styles in that bucket | v1 det | v2 det | v1 FP | v2 FP |
+|---|---|---|---|---|---|
+| 5 | +novel_ext | 100% | 100% | 0% | 0% |
+| 7 | +wiper | 100% | 100% | 0% | 0% |
+| 9 | +wiper (heaviest noise) | 100% | 100% | 0% | **0–25%** (seed-dependent) |
+
+**Key finding:** detection stays at 100% for both engines on every future bucket, but v2's
+false-positive rate on future noisy-benign windows is *unstable* — a single fold across seeds shows
+a 25% spike (seed 7, fold 9) while v1 is deterministically 0%. This is textbook ML
+distribution-shift/staleness: once v2 is retrained on the new regime it recovers (seed 11: 0% on all
+folds). It is exactly why the drift monitor and periodic retraining exist — and why v1 remains a
+valuable, stable baseline for an environment whose "normal" changes over time.
 
 ---
 

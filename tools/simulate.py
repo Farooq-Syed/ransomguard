@@ -23,6 +23,8 @@ NOTE_NAMES = [
     "RyukReadMe.txt",
     "restore-files.html",
 ]
+NOVEL_RANSOM_EXTS = [".pandora", ".fl00d", ".zzap", ".winterfell", ".cipherx"]
+NOVEL_NOTE_NAMES = ["RECOVER_YOUR_DATA.txt", "ENCRYPTION_ALERT.html", "restore_your_files.txt", "HALT.txt"]
 SUBDIRS = ["docs", "data", "backup", "archive", "misc", "images"]
 
 
@@ -98,6 +100,7 @@ class Sandbox:
         return self._benign_system_events(rng)
 
     def attack_step(self, fraction: float, rng: random.Random, honeypots=None) -> list[dict]:
+        style = self.attack_style
         targets = self.files[:]
         rng.shuffle(targets)
         k = max(1, int(len(targets) * fraction))
@@ -108,12 +111,19 @@ class Sandbox:
             if norm in canary_paths:
                 continue
             size = (self.root / rel).stat().st_size or 2048
-            self._write(rel, high_entropy=True, size=size)
+            if style == "wiper":
+                p = self.root / rel
+                try:
+                    p.write_bytes(b"\x00" * size)  # low-entropy destructive overwrite
+                except OSError:
+                    pass
+            else:
+                self._write(rel, high_entropy=True, size=size)
         for rel in targets:
-            if self.attack_style == "stealth":
+            if style in ("stealth", "wiper"):
                 continue
             if rng.random() < 0.6:
-                ext = rng.choice(RANSOM_EXTS)
+                ext = rng.choice(NOVEL_RANSOM_EXTS if style == "novel_ext" else RANSOM_EXTS)
                 try:
                     os.rename(self.root / rel, self.root / (rel + ext))
                     if rel in self.files:
@@ -131,11 +141,11 @@ class Sandbox:
                         p.write_bytes(os.urandom(p.stat().st_size or 2048))
                     except OSError:
                         pass
-        if self.attack_style != "stealth":
+        if style not in ("stealth", "wiper"):
             dirs = {str((self.root / os.path.dirname(f)).resolve()) for f in self.files}
             for d in dirs:
                 try:
-                    note = Path(d) / rng.choice(NOTE_NAMES)
+                    note = Path(d) / rng.choice(NOVEL_NOTE_NAMES if style == "novel_ext" else NOTE_NAMES)
                     note.write_text("Your files have been encrypted. Pay to recover.\n", encoding="utf-8")
                 except OSError:
                     pass
@@ -150,6 +160,16 @@ class Sandbox:
                                 self.files.remove(rel)
                         except OSError:
                             pass
+        if style == "wiper":
+            for rel in targets:
+                p = self.root / rel
+                if p.exists() and rng.random() < 0.3:
+                    try:
+                        p.unlink()
+                        if rel in self.files:
+                            self.files.remove(rel)
+                    except OSError:
+                        pass
         return self._attack_system_events(rng)
 
     def step(self, window_idx: int, attack_start: int | None, honeypots, rng: random.Random) -> list[dict]:
@@ -168,7 +188,7 @@ class Sandbox:
 
     def _attack_system_events(self, rng: random.Random) -> list[dict]:
         events = []
-        stealth = self.attack_style == "stealth"
+        stealth = self.attack_style in ("stealth", "wiper")
         if not stealth and rng.random() < 0.8:
             events.append({"type": "process", "kind": "shadowcopy", "weight": 70, "name": "vssadmin.exe", "pid": rng.randrange(1000, 9999), "cmdline": "vssadmin delete shadows /all /quiet"})
         if not stealth and rng.random() < 0.7:
@@ -199,3 +219,32 @@ def build_session(kind: str, root: str, rng: random.Random, n_files: int = 40,
         "rng": rng,
         "root": root,
     }
+
+
+def build_timeline(n_buckets: int, bucket_size: int, seed: int, root: str,
+                   schedule: list[dict], n_files: int = 35, n_windows: int = 7) -> list[dict]:
+    """Time-ordered corpus with an *evolving* distribution.
+
+    Each bucket mixes attack styles and benign noise according to the schedule.
+    Later buckets contain styles/behaviours that never appear in earlier ones —
+    so a model trained on early buckets faces genuinely unseen future data.
+    """
+    master = random.Random(seed)
+    buckets = []
+    idx = 0
+    for b in range(n_buckets):
+        spec = schedule[b] if b < len(schedule) else schedule[-1]
+        styles = spec["styles"]
+        noise = spec.get("noise", 0.2)
+        box = []
+        for _ in range(bucket_size):
+            rr = random.Random(master.randrange(1 << 30))
+            kind = "ransomware" if rr.random() < 0.5 else "benign"
+            style = rr.choice(styles)
+            root_i = os.path.join(root, f"t{b}_{idx}")
+            box.append(build_session(kind, root_i, random.Random(master.randrange(1 << 30)),
+                                     n_files=n_files, n_windows=n_windows, noise=noise,
+                                     attack_style=style))
+            idx += 1
+        buckets.append({"bucket": b, "sessions": box})
+    return buckets
