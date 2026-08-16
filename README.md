@@ -14,6 +14,9 @@ Two detection engines, comparable side by side:
 Both share the same scanning core (filesystem snapshot/diff, honeypots, process and resource
 monitors) — only the scoring differs.
 
+**Docs:** full test results and analysis in [FINDINGS.md](FINDINGS.md); prioritized next steps in
+[ROADMAP.md](ROADMAP.md); charts under `results/`.
+
 ---
 
 ## Why these files? (research)
