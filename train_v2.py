@@ -63,7 +63,8 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--n-files", type=int, default=30)
     ap.add_argument("--n-windows", type=int, default=6)
-    ap.add_argument("--noise-benign", type=float, default=0.2)
+    ap.add_argument("--noise-benign", type=float, default=0.4)
+    ap.add_argument("--stealth-frac", type=float, default=0.3)
     ap.add_argument("--out", type=str, default=str(MODEL_DIR / "v2_model.pkl"))
     args = ap.parse_args()
 
@@ -72,7 +73,7 @@ def main() -> None:
     print("Generating training sessions...")
     sessions = make_sessions(args.n_benign, args.n_ransom, args.seed, tmp_root,
                              noise_benign=args.noise_benign, n_files=args.n_files,
-                             n_windows=args.n_windows)
+                             n_windows=args.n_windows, stealth_frac=args.stealth_frac)
     config = make_test_config(sessions[0]["sandbox"].root, "", low_rate=False)
     print(f"Extracting window features ({len(sessions)} sessions)...")
     X, y = build_dataset(sessions, config)

@@ -28,7 +28,8 @@ class RecordingAlerter(Alerter):
         self.history.append((level, message))
 
 
-def make_test_config(sandbox_root: str, manifest_path: str, low_rate: bool = True) -> Config:
+def make_test_config(sandbox_root: str, manifest_path: str, low_rate: bool = True,
+                     rate_warn: int | None = None, rate_critical: int | None = None) -> Config:
     overrides = {
         "watch_dirs": [{"path": sandbox_root, "priority": 70, "recursive": True}],
         "watch_files": [],
@@ -45,12 +46,17 @@ def make_test_config(sandbox_root: str, manifest_path: str, low_rate: bool = Tru
     if low_rate:
         overrides["mod_rate_warn"] = 25
         overrides["mod_rate_critical"] = 60
+    if rate_warn is not None:
+        overrides["mod_rate_warn"] = rate_warn
+    if rate_critical is not None:
+        overrides["mod_rate_critical"] = rate_critical
     return Config(deep_merge(DEFAULT_CONFIG, overrides))
 
 
 def make_sessions(n_benign: int, n_ransom: int, seed: int, base_root: str,
                   noise_benign: float = 0.2, noise_ransom: float = 0.0,
-                  n_files: int = 35, n_windows: int = 8) -> list[dict]:
+                  n_files: int = 35, n_windows: int = 8,
+                  stealth_frac: float = 0.0) -> list[dict]:
     rng = random.Random(seed)
     sessions = []
     idx = 0
@@ -59,10 +65,12 @@ def make_sessions(n_benign: int, n_ransom: int, seed: int, base_root: str,
         sessions.append(build_session("benign", root, random.Random(rng.randrange(1 << 30)),
                                       n_files=n_files, n_windows=n_windows, noise=noise_benign))
         idx += 1
-    for _ in range(n_ransom):
+    for i in range(n_ransom):
         root = os.path.join(base_root, f"r_{idx}")
+        style = "stealth" if (i / max(1, n_ransom)) < stealth_frac else "classic"
         sessions.append(build_session("ransomware", root, random.Random(rng.randrange(1 << 30)),
-                                      n_files=n_files, n_windows=n_windows, noise=noise_ransom))
+                                      n_files=n_files, n_windows=n_windows, noise=noise_ransom,
+                                      attack_style=style))
         idx += 1
     random.Random(seed + 1).shuffle(sessions)
     return sessions
@@ -81,11 +89,11 @@ def run_windows(session: dict, feed) -> list[dict]:
     return out
 
 
-def evaluate_v1(session: dict) -> dict:
+def evaluate_v1(session: dict, config=None) -> dict:
     sandbox = session["sandbox"]
     with tempfile.TemporaryDirectory() as tmp:
         manifest = os.path.join(tmp, "honey.json")
-        config = make_test_config(sandbox.root, manifest)
+        config = config or make_test_config(sandbox.root, manifest)
         alerter = RecordingAlerter()
         hp = HoneypotManager(config, Path(manifest))
         hp.setup()
@@ -147,6 +155,14 @@ def summarize_results(results: list[dict]) -> dict:
     fn = len(ransom) - tp
     latencies = [r["latency"] for r in ransom if r.get("detected") and r.get("latency") is not None]
     lat_mean = round(sum(latencies) / len(latencies), 2) if latencies else None
+    by_style = {}
+    for style in ("classic", "stealth"):
+        group = [r for r in ransom if r.get("style") == style]
+        if group:
+            by_style[style] = {
+                "n": len(group),
+                "detected": sum(1 for r in group if r["detected"]),
+            }
     return {
         "benign": len(benign),
         "ransomware": len(ransom),
@@ -157,6 +173,7 @@ def summarize_results(results: list[dict]) -> dict:
         "detection_rate": tp / max(1, len(ransom)),
         "false_positive_rate": fp / max(1, len(benign)),
         "latency_mean_steps": lat_mean,
+        "by_style": by_style,
     }
 
 
@@ -196,6 +213,7 @@ def summarize(session: dict, results: list[dict], use_prob: bool = False) -> dic
         det = bool(det) or detected_at is not None
     return {
         "kind": session["kind"],
+        "style": session.get("attack_style"),
         "detected": det,
         "false_alarm": false_alarm,
         "latency": detected_at,

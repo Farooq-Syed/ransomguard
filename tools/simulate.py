@@ -27,10 +27,12 @@ SUBDIRS = ["docs", "data", "backup", "archive", "misc", "images"]
 
 
 class Sandbox:
-    def __init__(self, root: str, n_files: int = 40, rng: random.Random | None = None, noise: float = 0.0):
+    def __init__(self, root: str, n_files: int = 40, rng: random.Random | None = None,
+                 noise: float = 0.0, attack_style: str = "classic"):
         self.root = Path(root)
         self.rng = rng or random.Random()
         self.noise = noise
+        self.attack_style = attack_style
         self._counter = 0
         self.files: list[str] = []
         self.aged_files: list[str] = []
@@ -82,10 +84,17 @@ class Sandbox:
                 self.files.remove(rel)
             except OSError:
                 pass
-        if self.noise > 0 and rng.random() < self.noise:
-            rel = f"temp/download_{self._counter:05d}.tmp"
-            self._write(rel, high_entropy=True, size=rng.randrange(4096, 65536))
-            self.files.append(rel)
+        if self.noise > 0:
+            if rng.random() < self.noise:
+                rel = f"temp/download_{self._counter:05d}.tmp"
+                self._write(rel, high_entropy=True, size=rng.randrange(4096, 65536))
+                self.files.append(rel)
+            if rng.random() < self.noise * 0.7:
+                for _ in range(rng.randrange(50, 90)):
+                    rel = self._new_rel_path()
+                    self._write(rel, high_entropy=False)
+                    self.files.append(rel)
+                    self.n_created += 1
         return self._benign_system_events(rng)
 
     def attack_step(self, fraction: float, rng: random.Random, honeypots=None) -> list[dict]:
@@ -101,6 +110,8 @@ class Sandbox:
             size = (self.root / rel).stat().st_size or 2048
             self._write(rel, high_entropy=True, size=size)
         for rel in targets:
+            if self.attack_style == "stealth":
+                continue
             if rng.random() < 0.6:
                 ext = rng.choice(RANSOM_EXTS)
                 try:
@@ -120,24 +131,25 @@ class Sandbox:
                         p.write_bytes(os.urandom(p.stat().st_size or 2048))
                     except OSError:
                         pass
-        dirs = {str((self.root / os.path.dirname(f)).resolve()) for f in self.files}
-        for d in dirs:
-            try:
-                note = Path(d) / rng.choice(NOTE_NAMES)
-                note.write_text("Your files have been encrypted. Pay to recover.\n", encoding="utf-8")
-            except OSError:
-                pass
-        if rng.random() < 0.4:
-            extra = targets[: max(1, len(targets) // 4)]
-            for rel in extra:
-                p = self.root / rel
-                if p.exists():
-                    try:
-                        p.unlink()
-                        if rel in self.files:
-                            self.files.remove(rel)
-                    except OSError:
-                        pass
+        if self.attack_style != "stealth":
+            dirs = {str((self.root / os.path.dirname(f)).resolve()) for f in self.files}
+            for d in dirs:
+                try:
+                    note = Path(d) / rng.choice(NOTE_NAMES)
+                    note.write_text("Your files have been encrypted. Pay to recover.\n", encoding="utf-8")
+                except OSError:
+                    pass
+            if rng.random() < 0.4:
+                extra = targets[: max(1, len(targets) // 4)]
+                for rel in extra:
+                    p = self.root / rel
+                    if p.exists():
+                        try:
+                            p.unlink()
+                            if rel in self.files:
+                                self.files.remove(rel)
+                        except OSError:
+                            pass
         return self._attack_system_events(rng)
 
     def step(self, window_idx: int, attack_start: int | None, honeypots, rng: random.Random) -> list[dict]:
@@ -156,9 +168,10 @@ class Sandbox:
 
     def _attack_system_events(self, rng: random.Random) -> list[dict]:
         events = []
-        if rng.random() < 0.8:
+        stealth = self.attack_style == "stealth"
+        if not stealth and rng.random() < 0.8:
             events.append({"type": "process", "kind": "shadowcopy", "weight": 70, "name": "vssadmin.exe", "pid": rng.randrange(1000, 9999), "cmdline": "vssadmin delete shadows /all /quiet"})
-        if rng.random() < 0.7:
+        if not stealth and rng.random() < 0.7:
             events.append({"type": "process", "kind": "suspicious_binary", "weight": 45, "name": "vssadmin.exe", "pid": rng.randrange(1000, 9999)})
         if rng.random() < 0.6:
             events.append({"type": "process", "kind": "mass_writer", "weight": 40, "name": "encryptor.exe", "pid": rng.randrange(1000, 9999)})
@@ -170,8 +183,8 @@ class Sandbox:
 
 
 def build_session(kind: str, root: str, rng: random.Random, n_files: int = 40,
-                  n_windows: int = 8, noise: float = 0.0) -> dict:
-    sandbox = Sandbox(root, n_files=n_files, rng=rng, noise=noise)
+                  n_windows: int = 8, noise: float = 0.0, attack_style: str = "classic") -> dict:
+    sandbox = Sandbox(root, n_files=n_files, rng=rng, noise=noise, attack_style=attack_style)
     if kind == "ransomware":
         attack_start = rng.randrange(2, 4)
     else:
@@ -182,6 +195,7 @@ def build_session(kind: str, root: str, rng: random.Random, n_files: int = 40,
         "attack_start": attack_start,
         "n_windows": n_windows,
         "noise": noise,
+        "attack_style": attack_style,
         "rng": rng,
         "root": root,
     }

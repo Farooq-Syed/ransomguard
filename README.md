@@ -102,9 +102,9 @@ python -m ransomguard_ml.monitor --model models/v2_model.pkl # run the ML monito
 ## Evaluation
 
 Both versions are tested on **identical synthetic sessions** that replay real filesystem activity:
-benign sessions (document edits, downloads, archive noise) and ransomware sessions (mass
-high-entropy rewrites, extension renames, note drops, shadow-copy deletion), generated in
-`tools/simulate.py`.
+benign sessions (document edits, downloads, archive noise, folder-copy bursts) and ransomware
+sessions — both "classic" (renames, ransom notes, shadow-copy deletion) and "stealth" (pure
+high-entropy rewrites, no notes/renames/process traces) — generated in `tools/simulate.py`.
 
 Run the tests yourself:
 
@@ -112,16 +112,57 @@ Run the tests yourself:
 python run_v1_test.py --n-benign 60 --n-ransom 60 --seed 1337
 python train_v2.py
 python run_v2_test.py --seed 1337
-python run_compare.py --seed 1337
+python run_compare.py --seed 1337            # clean scenario
+python run_compare.py --seed 1337 --prod-rates   # noisy benign + stealth
 ```
 
-### Results (seed 1337, 60 benign + 60 ransomware sessions)
+### v2 model validation (20% holdout windows, 400 benign + 400 ransomware training sessions)
+
+accuracy 1.000 · precision 1.000 · recall 1.000 · ROC AUC 1.000
+
+The model's top learned features mirror v1's heuristics — a useful sanity check that the rules
+encode real signal: `max_entropy_mod`, `n_high_value_mod`, `mean_entropy_mod`, `n_modified`,
+`n_target_mod`, `n_crypto_procs`.
+
+### Head-to-head results (60 benign + 60 ransomware sessions each, seed 1337)
+
+**Clean scenario** (clean benign + classic attacks, default thresholds) — both engines:
 
 | Metric | v1 (heuristics) | v2 (ML) |
 |---|---|---|
-| Detection rate (attacks caught) | 100.0% | <fill in> |
-| False-positive rate (benign flagged) | 0.0% | <fill in> |
-| Mean latency to first alert | 0 steps | <fill in> |
+| Detection rate | 100.0% | 100.0% |
+| False-positive rate | 0.0% | 0.0% |
+| Mean latency | 0 steps | 0 steps |
+
+**Stress scenario** (noisy benign incl. folder-copy bursts, 30% stealth attacks):
+
+*Aggressive/test rate thresholds (warn 25/min, critical 60/min)*
+
+| Metric | v1 (heuristics) | v2 (ML) |
+|---|---|---|
+| Detection rate (classic + stealth) | 100.0% (60/60) | 100.0% (60/60) |
+| False-positive rate | **91.7%** (55/60) | **0.0%** (0/60) |
+
+*Production-like rate thresholds (warn 100/min, critical 600/min)*
+
+| Metric | v1 (heuristics) | v2 (ML) |
+|---|---|---|
+| Detection rate | 100.0% | 100.0% |
+| False-positive rate | 0.0% | 0.0% |
+
+### What the comparison shows
+
+- **Detection power is equal**: both catch every attack, stealth included, at the first window.
+  The simulated encryption always produces the entropy/magic signals v1 was designed around, so
+  the rules already capture the same signal the model learns.
+- **v2 is more precise under noisy-but-benign activity**: v1's mass-modification heuristic can't
+  tell a legitimate folder copy (50–90 new files in a window) from mass encryption, so it fires
+  at aggressive thresholds; v2, having seen such bursts in training, stays quiet.
+- **Both are instant** (0-step latency) on these workloads.
+
+Practical takeaway: run **both** engines side by side — v1 gives explainable rule-based alerts and
+emergency actions (quarantine/freeze); v2 adds ML-grounded precision that tolerates noisy benign
+environments without threshold hand-tuning.
 
 ---
 
