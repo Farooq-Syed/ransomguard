@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.log
+out.log
+.honeypot_manifest.json
+ransomguard_quarantine/
