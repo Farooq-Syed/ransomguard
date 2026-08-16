@@ -13,7 +13,8 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.ensemble import IsolationForest, RandomForestClassifier
 from sklearn.metrics import (accuracy_score, roc_auc_score, precision_recall_fscore_support)
 
 from ransomguard.config import Config
@@ -85,11 +86,25 @@ def main() -> None:
     Xtr, ytr, Xte, yte = X[tr], y[tr], X[te], y[te]
 
     print(f"Training RandomForest on {len(Xtr)} windows...")
-    model = RandomForestClassifier(
+    rf = RandomForestClassifier(
         n_estimators=300, max_depth=14, min_samples_leaf=2,
         class_weight="balanced", random_state=0, n_jobs=-1,
     )
+    rf.fit(Xtr, ytr)
+
+    print("Calibrating probabilities (isotonic)...")
+    model = CalibratedClassifierCV(rf, method="isotonic", cv=5)
     model.fit(Xtr, ytr)
+
+    print("Training IsolationForest anomaly layer on benign windows...")
+    Xb = X[y == 0]
+    iforest = IsolationForest(n_estimators=200, contamination=0.01, random_state=0, n_jobs=-1)
+    iforest.fit(Xb)
+    benign_scores = iforest.decision_function(Xb)
+    outlier_threshold = float(np.percentile(benign_scores, 1))
+
+    benign_probas = model.predict_proba(Xb)[:, 1]
+    benign_stats = {"mean": float(benign_probas.mean()), "std": float(benign_probas.std())}
 
     pred = model.predict(Xte)
     prob = model.predict_proba(Xte)[:, 1]
@@ -98,8 +113,10 @@ def main() -> None:
     print(f"accuracy : {accuracy_score(yte, pred):.3f}")
     print(f"precision: {prec:.3f}   recall: {rec:.3f}   f1: {f1:.3f}")
     print(f"ROC AUC  : {roc_auc_score(yte, prob):.3f}")
+    print(f"benign prob baseline: mean={benign_stats['mean']:.3f} std={benign_stats['std']:.3f}")
+    print(f"IF outlier threshold: {outlier_threshold:.3f}")
 
-    top = sorted(zip(FEATURE_NAMES, model.feature_importances_), key=lambda t: -t[1])[:10]
+    top = sorted(zip(FEATURE_NAMES, rf.feature_importances_), key=lambda t: -t[1])[:10]
     print("\ntop features:")
     for name, imp in top:
         print(f"  {name:<20} {imp:.3f}")
@@ -107,6 +124,9 @@ def main() -> None:
     payload = {
         "model": model,
         "feature_names": FEATURE_NAMES,
+        "iforest": iforest,
+        "outlier_threshold": outlier_threshold,
+        "benign_stats": benign_stats,
         "trained_on": {"sessions": len(sessions), "windows": int(len(X))},
     }
     out = Path(args.out)

@@ -14,6 +14,7 @@ FEATURE_NAMES = [
     "n_notes",
     "n_appended_ext",
     "n_honeypot_hits",
+    "n_silent_tamper",
     "n_high_entropy_mod",
     "n_magic_change",
     "n_aged_mod",
@@ -80,6 +81,7 @@ def extract_features(batch: dict, events: list[dict], config, fs) -> dict:
     f["n_renamed"] += len(batch.get("renamed", []))
     f["n_notes"] += len(batch.get("note", []))
     f["n_honeypot_hits"] += len(batch.get("honeypot_hits", []))
+    f["n_silent_tamper"] += len(batch.get("silent_tamper", []))
 
     for entry in batch.get("new", []):
         base = os.path.basename(entry.path)

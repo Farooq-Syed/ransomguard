@@ -1,4 +1,4 @@
-"""v2 runtime: continuous ML-based monitoring.
+"""v2 runtime: continuous ML-based monitoring with anomaly layer + explanations.
 
 Usage:
   python -m ransomguard_ml.monitor --model models/v2_model.pkl
@@ -16,7 +16,10 @@ from ransomguard.alerter import Alerter
 from ransomguard.config import load_config
 from ransomguard.filesystem_monitor import FileSystemMonitor
 from ransomguard.honeypot import HoneypotManager
+from ransomguard_ml.drift import DriftMonitor
+from ransomguard_ml.explain import explain
 from ransomguard_ml.features import extract_features
+from ransomguard_ml.predict import predict_window
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -24,15 +27,18 @@ ROOT = Path(__file__).resolve().parent.parent
 class MLMonitor:
     def __init__(self, config, model_path, alerter):
         with open(model_path, "rb") as fh:
-            payload = pickle.load(fh)
-        self.model = payload["model"]
-        self.feature_names = payload["feature_names"]
+            self.payload = pickle.load(fh)
+        self.model = self.payload["model"]
+        self.feature_names = self.payload["feature_names"]
+        self.iforest = self.payload.get("iforest")
         self.alerter = alerter
         self.config = config
         manifest = ROOT / ".honeypot_manifest.json"
         self.honeypots = HoneypotManager(config, manifest)
         self.fs = FileSystemMonitor(config, alerter, self.honeypots)
-        self._streak = 0
+        stats = self.payload.get("benign_stats", {"mean": 0.1, "std": 0.1})
+        self.drift = DriftMonitor(stats["mean"], stats["std"], warn_z=config.drift_warn_z)
+        self.history = {"rf_hist": [], "out_hist": [], "outlier_threshold": self.payload.get("outlier_threshold", -1e9)}
 
     def scan_once(self, events=None):
         batch = self.fs.classify_batch()
@@ -40,35 +46,33 @@ class MLMonitor:
             self.alerter.emit(f"ML baseline snapshot: {batch['files']} files tracked.", "INFO")
             return batch, None
         feats = extract_features(batch, events or [], self.config, self.fs)
-        vec = [[feats[n] for n in self.feature_names]]
-        prob = float(self.model.predict_proba(vec)[0, 1])
-        if prob >= 0.9:
-            level = "CRITICAL"
-            self._streak += 1
-        elif prob >= 0.7:
-            level = "HIGH"
-            self._streak += 1
-        elif prob >= 0.5:
-            level = "WARN"
-            self._streak = 0
-        else:
-            level = "INFO"
-            self._streak = 0
-        if level == "CRITICAL" and self._streak >= 2:
-            level = "PANDEMIC"
+        vec = [feats[n] for n in self.feature_names]
+        pred = predict_window(self.model, self.iforest, vec, self.history)
+        level = pred["level"]
+
+        reason = ""
+        if level in ("HIGH", "CRITICAL", "PANDEMIC"):
+            top = explain(self.model, vec, self.feature_names)
+            reason = " why: " + ", ".join(f"{name}={coef:+.2f}" for name, coef in top) if top else ""
+        if self.drift.update(pred["prob"]):
+            self.alerter.emit("Baseline drift detected — recent ML scores far above benign training "
+                              "distribution; consider retraining.", "WARN")
+
         self.alerter.emit(
-            f"ML prob {prob:.2f} | files {batch['files']}, mod {len(batch['modified'])}, "
-            f"new {len(batch['new'])}, renamed {len(batch['renamed'])}, notes {len(batch['note'])}, "
-            f"honeypot {len(batch['honeypot_hits'])}",
+            f"ML prob {pred['prob']:.2f} outlier={pred.get('outlier')} streak={pred.get('streak')} | "
+            f"files {batch['files']}, mod {len(batch['modified'])}, new {len(batch['new'])}, "
+            f"renamed {len(batch['renamed'])}, notes {len(batch['note'])}, "
+            f"honeypot {len(batch['honeypot_hits'])}, silent_tamper {len(batch['silent_tamper'])}{reason}",
             level,
             dedup_key=f"ml:{level}",
         )
-        return batch, {"prob": prob, "level": level}
+        return batch, pred
 
 
 def run(model_path: str) -> None:
     config = load_config(ROOT / "config.json")
-    alerter = Alerter(log_file=str(ROOT / config.log_file), webhook_url=config.webhook_url)
+    alerter = Alerter(log_file=str(ROOT / config.log_file), webhook_url=config.webhook_url,
+                      cef_log_file=config.cef_log_file or "")
     monitor = MLMonitor(config, model_path, alerter)
     stop = threading.Event()
 

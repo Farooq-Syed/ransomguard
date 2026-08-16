@@ -27,7 +27,6 @@ def main() -> None:
 
     with open(args.model, "rb") as fh:
         payload = pickle.load(fh)
-    model, feature_names = payload["model"], payload["feature_names"]
 
     tmp = tempfile.mkdtemp(prefix="rg_cmp_")
     sessions = make_sessions(args.n_benign, args.n_ransom, args.seed, tmp,
@@ -41,7 +40,7 @@ def main() -> None:
     for i, s in enumerate(sessions):
         cfg = make_test_config(s["sandbox"].root, "", low_rate=not args.prod_rates)
         r1.append(evaluate_v1(s, cfg))
-        r2.append(evaluate_v2(s, model, feature_names, cfg))
+        r2.append(evaluate_v2(s, payload, cfg))
         if (i + 1) % 30 == 0:
             print(f"  evaluated {i + 1}/{len(sessions)} sessions")
 

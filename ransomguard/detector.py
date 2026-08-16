@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import utils
 from .alerter import Alerter
+from .responder import Responder
 
 NEW_FILE_TARGET = 20
 NEW_FILE_HIGH_VALUE = 30
@@ -21,19 +22,22 @@ MODIFIED_AGED = 25
 RENAME_EXT_CHANGE = 40
 DELETE_TARGET = 10
 HONEYPOT_HIT = 120
+SILENT_TAMPER = 45
 RATE_WARN = 15
 RATE_CRITICAL = 40
-IN_HIGH_PRIORITY_DIR = 15
 CRITICAL_FILE = 25
+
+ALLOWED_WRITER_OVERRIDE = "allowed-writer"
 
 
 class Detector:
-    def __init__(self, config, alerter: Alerter):
+    def __init__(self, config, alerter: Alerter, responder: Responder | None = None):
         self.config = config
         self.alerter = alerter
+        self.responder = responder
         self._mod_events: deque[float] = deque()
         self._last_level = "INFO"
-        self._last_freeze_time = 0.0
+        self._last_proc_events: list[dict] = []
 
     def _priority_for(self, path: str) -> int:
         pri = self.config.file_priority(path)
@@ -52,7 +56,13 @@ class Detector:
             self._mod_events.popleft()
         return len(self._mod_events)
 
-    def handle_scan(self, batch: dict) -> None:
+    def _writers_all_allowed(self, writers: list[dict]) -> bool:
+        allowed = self.config.allowed_writers
+        if not writers or not allowed:
+            return False
+        return all(w.get("name", "").lower() in allowed for w in writers)
+
+    def handle_scan(self, batch: dict, writers: list[dict] | None = None) -> None:
         if batch.get("status") == "baseline":
             self.alerter.emit(f"Baseline snapshot taken: {batch['files']} files tracked.", "INFO")
             return
@@ -68,7 +78,7 @@ class Detector:
                 score += CRITICAL_FILE + 5
                 strong = True
                 details.append(f"critical system file modified: {path}")
-            entropy = utils.sample_entropy(path, self.config.entropy_sample)
+            entropy = utils.sample_entropy(path, self.config.entropy_sample, self.config.entropy_chunks)
             new_magic = utils.detect_magic(path)
             ext = entry.ext
 
@@ -89,6 +99,11 @@ class Detector:
             if self._age_days(entry) > self.config.aged_days:
                 score += self.config.aged_score
                 details.append(f"aged file ({self._age_days(entry):.0f} days old) suddenly modified: {path}")
+
+        for entry in batch["silent_tamper"]:
+            score += SILENT_TAMPER
+            strong = True
+            details.append(f"silent tamper (content changed, mtime restored): {entry.path}")
 
         for entry in batch["new"]:
             base = os.path.basename(entry.path)
@@ -135,6 +150,14 @@ class Detector:
             score += RATE_WARN
             details.append(f"elevated modification rate {rate}/min")
 
+        downgraded = False
+        if self._writers_all_allowed(writers or []):
+            downgraded = True
+            names = ", ".join(sorted({w.get("name") for w in writers or []}))
+            details.append(f"activity attributed to trusted writer(s): {names}")
+            strong = False
+            score = min(score, 15)
+
         if strong and score >= 150:
             self._escalate("PANDEMIC", score, details)
         elif strong and score >= 80:
@@ -143,9 +166,9 @@ class Detector:
             self._escalate("HIGH", score, details)
         elif score >= 40:
             self._escalate("WARN", score, details)
-        elif score >= 15:
+        elif score >= 15 or downgraded:
             self.alerter.emit(
-                f"Low-suspicion activity (score {score}): " + " | ".join(details[:2]),
+                f"Low-suspicion activity (score {score}): " + " | ".join(details[:3]),
                 "WARN",
                 dedup_key="fs:low",
             )
@@ -155,6 +178,7 @@ class Detector:
         return (time.time() - entry.mtime_ns / 1e9) / 86400.0
 
     def handle_events(self, events: list[dict]) -> None:
+        self._last_proc_events = events
         score = 0
         details = []
         for ev in events:
@@ -177,6 +201,8 @@ class Detector:
                 details.append(f"memory pressure {ev.get('value')}%")
             elif kind == "disk_write":
                 details.append(f"disk write burst {ev.get('value'):.0f} MB/s")
+            elif kind == "attribution":
+                details.append(f"writer: {ev.get('name')} holds {ev.get('files')} flagged file(s)")
         if details:
             self._escalate_events(score, details)
 
@@ -187,7 +213,9 @@ class Detector:
         self.alerter.emit(msg, level, dedup_key=f"fs:{level}")
         if level in ("CRITICAL", "PANDEMIC"):
             self._maybe_quarantine(details)
-            if self.config.auto_freeze:
+            if self.responder:
+                self.responder.respond(level, details, self._last_proc_events)
+            elif self.config.auto_freeze:
                 self._freeze()
 
     def _escalate_events(self, score: int, details: list[str]) -> None:
@@ -199,10 +227,6 @@ class Detector:
         qdir = self.config.quarantine_dir
         if not qdir:
             return
-        try:
-            qdir.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            return
         moved = 0
         for d in details:
             if ":" not in d:
@@ -210,14 +234,17 @@ class Detector:
             path = d.split(": ", 1)[-1].split(" (")[0].strip()
             if not path or not os.path.isfile(path):
                 continue
-            target = qdir / Path(path).name
-            n = 1
-            while target.exists():
-                target = qdir / f"{Path(path).stem}_{n}{Path(path).suffix}"
-                n += 1
+            snapshot = None
+            if self.responder:
+                snapshot = self.responder.snapshot_before_quarantine(path)
+            target = self._unique_quarantine_target(path, qdir)
             try:
                 shutil.move(path, str(target))
-                self.alerter.emit(f"Quarantined suspicious file: {path} -> {target}", "CRITICAL")
+                self.alerter.emit(
+                    f"Quarantined suspicious file: {path} -> {target}"
+                    + (f" (snapshot kept at {snapshot})" if snapshot else ""),
+                    "CRITICAL",
+                )
                 moved += 1
             except OSError as exc:
                 self.alerter.emit(f"Quarantine failed for {path}: {exc}", "WARN")
@@ -227,3 +254,25 @@ class Detector:
                 "Disconnect from network, kill the offending process, restore from offline backups.",
                 "PANDEMIC",
             )
+
+    @staticmethod
+    def _unique_quarantine_target(path: str, qdir: Path) -> Path:
+        target = qdir / Path(path).name
+        n = 1
+        while target.exists():
+            target = qdir / f"{Path(path).stem}_{n}{Path(path).suffix}"
+            n += 1
+        return target
+
+    def _freeze(self) -> None:
+        try:
+            import psutil
+        except ImportError:
+            return
+        for proc in psutil.process_iter(["pid", "name"]):
+            try:
+                if (proc.info.get("name") or "").lower() in self.config.suspicious_names:
+                    proc.suspend()
+                    self.alerter.emit(f"Suspended {proc.info.get('name')} [{proc.info.get('pid')}]", "CRITICAL")
+            except (psutil.Error, OSError):
+                continue

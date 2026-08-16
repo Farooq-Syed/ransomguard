@@ -23,15 +23,13 @@ def main() -> None:
     import pickle
     with open(args.model, "rb") as fh:
         payload = pickle.load(fh)
-    model = payload["model"]
-    feature_names = payload["feature_names"]
 
     tmp = tempfile.mkdtemp(prefix="rg_v2_")
     sessions = make_sessions(args.n_benign, args.n_ransom, args.seed, tmp,
                              n_files=args.n_files, n_windows=args.n_windows)
     results = []
     for i, s in enumerate(sessions):
-        results.append(evaluate_v2(s, model, feature_names))
+        results.append(evaluate_v2(s, payload))
         if (i + 1) % 30 == 0:
             print(f"  v2 evaluated {i + 1}/{len(sessions)} sessions")
     print_report(results, "v2 ML detector")

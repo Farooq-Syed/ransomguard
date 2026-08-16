@@ -28,7 +28,7 @@ class RecordingAlerter(Alerter):
         self.history.append((level, message))
 
 
-def make_test_config(sandbox_root: str, manifest_path: str, low_rate: bool = True,
+def make_test_config(sandbox_root: str, manifest_path: str, low_rate: bool = False,
                      rate_warn: int | None = None, rate_critical: int | None = None) -> Config:
     overrides = {
         "watch_dirs": [{"path": sandbox_root, "priority": 70, "recursive": True}],
@@ -113,8 +113,13 @@ def evaluate_v1(session: dict, config=None) -> dict:
         return summarize(session, results)
 
 
-def evaluate_v2(session: dict, model, feature_names, config=None) -> dict:
+def evaluate_v2(session: dict, payload: dict, config=None) -> dict:
     from ransomguard_ml.features import extract_features
+    from ransomguard_ml.predict import predict_window
+
+    model = payload["model"]
+    feature_names = payload["feature_names"]
+    iforest = payload.get("iforest")
 
     sandbox = session["sandbox"]
     with tempfile.TemporaryDirectory() as tmp:
@@ -127,22 +132,16 @@ def evaluate_v2(session: dict, model, feature_names, config=None) -> dict:
         detector = Detector(config, alerter)
         detector.handle_scan(fs.classify_batch())
 
+        history = {"rf_hist": [], "out_hist": [], "outlier_threshold": payload.get("outlier_threshold", -1e9)}
         results = []
         attack_start = session["attack_start"]
         for w in range(session["n_windows"]):
             events = sandbox.step(w, attack_start, hp, session["rng"])
             batch = fs.classify_batch()
             features = extract_features(batch, events, config, fs)
-            vec = [[features[n] for n in feature_names]]
-            prob = float(model.predict_proba(vec)[0, 1])
-            level = "INFO"
-            if prob >= 0.9:
-                level = "CRITICAL"
-            elif prob >= 0.7:
-                level = "HIGH"
-            elif prob >= 0.5:
-                level = "WARN"
-            results.append({"window": w, "prob": prob, "level": level})
+            vec = [features[n] for n in feature_names]
+            pred = predict_window(model, iforest, vec, history)
+            results.append({"window": w, "prob": pred["prob"], "level": pred["level"]})
         return summarize(session, results, use_prob=True)
 
 

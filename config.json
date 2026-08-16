@@ -3,50 +3,179 @@
   "max_files_per_scan": 150000,
   "entropy_threshold": 7.4,
   "entropy_sample_bytes": 8192,
+  "entropy_chunks": 6,
   "mod_rate_window_seconds": 60,
   "mod_rate_warn": 100,
   "mod_rate_critical": 600,
   "aged_days": 30,
   "aged_score": 25,
   "honeypot_prefix": "~canary_",
+  "honeypot_bait": false,
   "honeypot_dirs": [
-    {"path": "~/Documents", "count": 3},
-    {"path": "~/Desktop", "count": 2}
+    {
+      "path": "C:/Users/Farooq Syed/Documents",
+      "count": 3
+    },
+    {
+      "path": "C:/Users/Farooq Syed/Desktop",
+      "count": 2
+    }
   ],
+  "hash_tracked": true,
+  "hash_track_max_files": 2000,
+  "content_hash_bytes": 16384,
+  "allowed_writers": [
+    "WINWORD.EXE",
+    "EXCEL.EXE",
+    "POWERPNT.EXE",
+    "OUTLOOK.EXE",
+    "onedrive.exe",
+    "SearchIndexer.exe",
+    "SearchProtocolHost.exe",
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "code.exe",
+    "notepad++.exe",
+    "git.exe",
+    "node.exe",
+    "npm",
+    "svchost.exe",
+    "system"
+  ],
+  "event_driven": true,
+  "watch_mapped_drives": false,
+  "responder": {
+    "dry_run": true,
+    "kill_suspicious": true,
+    "disable_shares": false
+  },
+  "cef_log_file": "",
+  "drift_warn_z": 3.0,
   "ignore_dirs": [
-    ".cache", ".git", ".hg", ".svn", "Google", "Installer", "LogFiles",
-    "Microsoft", "Mozilla", "Node", "System Volume Information", "Temp",
-    "WinSxS", "__pycache__", "cache", "logs", "node_modules", "npm-cache",
-    "Package Cache", "$Recycle.Bin"
+    "$Recycle.Bin",
+    ".cache",
+    ".git",
+    ".hg",
+    ".svn",
+    "Google",
+    "Installer",
+    "LogFiles",
+    "Microsoft",
+    "Mozilla",
+    "Package Cache",
+    "System Volume Information",
+    "Temp",
+    "WinSxS",
+    "__pycache__",
+    "cache",
+    "logs",
+    "node_modules",
+    "npm-cache"
   ],
   "watch_dirs": [
-    {"path": "~/Documents", "priority": 70, "recursive": true},
-    {"path": "~/Desktop", "priority": 70, "recursive": true},
-    {"path": "~/Downloads", "priority": 40, "recursive": true},
-    {"path": "~/Pictures", "priority": 55, "recursive": true},
-    {"path": "~/Videos", "priority": 55, "recursive": true},
-    {"path": "~/.ssh", "priority": 95, "recursive": true},
-    {"path": "~/.gnupg", "priority": 95, "recursive": true},
-    {"path": "~/.aws", "priority": 95, "recursive": true},
-    {"path": "~/.config", "priority": 60, "recursive": true},
-    {"path": "C:/", "priority": 30, "recursive": false}
+    {
+      "path": "C:/Users/Farooq Syed/Documents",
+      "priority": 70,
+      "recursive": true
+    },
+    {
+      "path": "C:/Users/Farooq Syed/Desktop",
+      "priority": 70,
+      "recursive": true
+    },
+    {
+      "path": "C:/Users/Farooq Syed/Downloads",
+      "priority": 40,
+      "recursive": true
+    },
+    {
+      "path": "C:/Users/Farooq Syed/Pictures",
+      "priority": 55,
+      "recursive": true
+    },
+    {
+      "path": "C:/Users/Farooq Syed/Videos",
+      "priority": 55,
+      "recursive": true
+    },
+    {
+      "path": "C:/Users/Farooq Syed/.ssh",
+      "priority": 95,
+      "recursive": true
+    },
+    {
+      "path": "C:/Users/Farooq Syed/.gnupg",
+      "priority": 95,
+      "recursive": true
+    },
+    {
+      "path": "C:/Users/Farooq Syed/.aws",
+      "priority": 95,
+      "recursive": true
+    },
+    {
+      "path": "C:/Users/Farooq Syed/.config",
+      "priority": 60,
+      "recursive": true
+    },
+    {
+      "path": "C:/",
+      "priority": 30,
+      "recursive": false
+    }
   ],
   "watch_files": [
-    {"path": "C:/Windows/System32/drivers/etc/hosts", "priority": 90},
-    {"path": "C:/Windows/System32/config/SAM", "priority": 95},
-    {"path": "C:/Windows/System32/config/SYSTEM", "priority": 95},
-    {"path": "C:/Windows/System32/config/SECURITY", "priority": 95},
-    {"path": "C:/Windows/System32/config/SOFTWARE", "priority": 90},
-    {"path": "C:/Windows/System32/config/DEFAULT", "priority": 80},
-    {"path": "C:/Boot/BCD", "priority": 90}
+    {
+      "path": "C:/Windows/System32/drivers/etc/hosts",
+      "priority": 90
+    },
+    {
+      "path": "C:/Windows/System32/config/SAM",
+      "priority": 95
+    },
+    {
+      "path": "C:/Windows/System32/config/SYSTEM",
+      "priority": 95
+    },
+    {
+      "path": "C:/Windows/System32/config/SECURITY",
+      "priority": 95
+    },
+    {
+      "path": "C:/Windows/System32/config/SOFTWARE",
+      "priority": 90
+    },
+    {
+      "path": "C:/Windows/System32/config/DEFAULT",
+      "priority": 80
+    },
+    {
+      "path": "C:/Boot/BCD",
+      "priority": 90
+    }
   ],
   "suspicious_process_names": [
-    "vssadmin", "wmic", "bcdedit", "wbadmin", "cipher", "srm",
-    "openssl", "gpg", "aescrypt", "privatetool", "taskkill"
+    "vssadmin",
+    "wmic",
+    "bcdedit",
+    "wbadmin",
+    "cipher",
+    "srm",
+    "openssl",
+    "gpg",
+    "aescrypt",
+    "privatetool",
+    "taskkill"
   ],
   "shadowcopy_cmd_patterns": [
-    "shadowcopy", "shadowcopies", "delete shadows", "shadow delete",
-    "vss delete", "vssadmin delete", "bcdedit /set {default} recoveryenabled no"
+    "shadowcopy",
+    "shadowcopies",
+    "delete shadows",
+    "shadow delete",
+    "vss delete",
+    "vssadmin delete",
+    "bcdedit /set {default} recoveryenabled no"
   ],
   "ransom_note_patterns": [
     "(?i)readme.*\\.(txt|html?)$",
@@ -56,9 +185,26 @@
     "(?i)ryuk.*\\.txt$"
   ],
   "appended_extensions": [
-    ".lockbit", ".wannacry", ".ryuk", ".conti", ".crypt", ".encrypted",
-    ".locked", ".enc", ".aes256", ".clop", ".basta", ".avos", ".cuba",
-    ".medusa", ".seth", ".powerranges", ".lock", ".lock64", ".vvv", ".bozok"
+    ".lockbit",
+    ".wannacry",
+    ".ryuk",
+    ".conti",
+    ".crypt",
+    ".encrypted",
+    ".locked",
+    ".enc",
+    ".aes256",
+    ".clop",
+    ".basta",
+    ".avos",
+    ".cuba",
+    ".medusa",
+    ".seth",
+    ".powerranges",
+    ".lock",
+    ".lock64",
+    ".vvv",
+    ".bozok"
   ],
   "resource": {
     "cpu_spike_percent": 80,
@@ -69,6 +215,6 @@
   },
   "webhook_url": "",
   "log_file": "ransomguard.log",
-  "quarantine_dir": "~/ransomguard_quarantine",
+  "quarantine_dir": "C:/Users/Farooq Syed/ransomguard_quarantine",
   "auto_freeze": false
 }

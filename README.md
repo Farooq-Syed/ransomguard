@@ -8,8 +8,11 @@ Two detection engines, comparable side by side:
 
 | Version | Approach | Status |
 |---|---|---|
-| **v1** | Rule/heuristic scoring engine | Tested: 100% detection, 0% false positives (120 simulated sessions) |
-| **v2** | Machine-learning detector (RandomForest, trained on synthetic benign/ransomware window features) | Trained + tested, results below |
+| **v1** | Rule/heuristic scoring engine | 100% detection, 0% FP (synthetic suite) |
+| **v2** | ML detector: calibrated RandomForest + IsolationForest anomaly layer + streak logic + LIME explanations + drift monitor | Trained on 800 sessions; 100% detection, 0% FP; more precise than v1 on noisy-but-benign workloads |
+
+Both share the same scanning core (filesystem snapshot/diff, honeypots, process and resource
+monitors) — only the scoring differs.
 
 ---
 
@@ -97,6 +100,12 @@ python train_v2.py --n-benign 400 --n-ransom 400 --seed 42   # train a fresh mod
 python -m ransomguard_ml.monitor --model models/v2_model.pkl # run the ML monitor
 ```
 
+The v2 model bundle now contains a **calibrated RandomForest** (isotonic), an **IsolationForest
+anomaly layer** trained on benign-only windows (catches *novel* ransomware you never simulated,
+used only as corroboration — an outlier alone never fires an alert), **benign baseline stats** for
+the drift monitor, and the trained feature names. The runtime emits a lightweight LIME-style
+explanation ("why") on every HIGH+ alert.
+
 ---
 
 ## Evaluation
@@ -166,6 +175,80 @@ environments without threshold hand-tuning.
 
 ---
 
+## Hardening & improvements applied
+
+Detection speed & coverage
+- **Event-driven watching (watchdog)**: the main loop now wakes on filesystem change events instead
+  of waiting for the next poll; the poll interval is the worst-case, not the typical, latency.
+- **Strided entropy sampling**: reads 6+ evenly-spaced slices and takes the max, defeating partial
+  encryption (encrypt 1 MB / skip 3 MB) that hides behind low-entropy gaps.
+- **Process→file attribution**: correlates open file handles with just-modified/created files so an
+  alert can name the writer process, and supports an **allow-list of trusted writers** (Office,
+  OneDrive, indexers) that suppresses false alarms.
+- **Silent-tamper detection**: tracked files (critical system files, `~/.ssh`-style dirs, honeypots)
+  are content-hashed every scan, catching attackers who rewrite a file *and restore its mtime*.
+
+Adversary resilience
+- **Randomized honeypots**: decoys use realistic random filenames (no `~canary_` prefix to
+  fingerprint), plus optional pre-partially-encrypted "bait" canaries.
+- **Honeypot-path bug fixed** (`planted_paths` returned markers, not paths) — uncovered by the new
+  unit tests.
+
+ML (v2)
+- **Probability calibration** (isotonic) so thresholds mean something.
+- **IsolationForest anomaly layer** trained on benign-only windows for *novel* ransomware; used as
+  corroboration only (never fires alone).
+- **Streak logic**: repeated borderline windows escalate.
+- **LIME-style explanations** on every HIGH+ alert ("why").
+- **Drift monitor**: warns when recent ML scores drift far above the benign training baseline
+  (early signal the model needs retraining).
+
+Response & operations
+- **Snapshot-before-quarantine** (copy to safe store before moving).
+- **Emergency responder** (dry-run by default): suspend/kill suspicious process trees, remove
+  network shares, and watch Volume Shadow Copy count drops. `--responder active` to enable.
+- **CEF log export** (SIEM ingestion) + **webhook retries**.
+- **Config validation + hot-reload** (`validate()` + in-place reload on file change).
+- **Mapped-drive watching** (`--add-mapped-drives`) and **`--restore`** for quarantined files.
+- **CI (GitHub Actions)** across Windows/Linux + Python 3.11/3.12 and a committed **pytest suite**
+  (19 tests: entropy, magic, scoring, allow-list, silent-tamper, honeypots, features).
+
+---
+
+## Remaining challenges (honest assessment)
+
+Even after the above, these are the hard problems that remain — useful to brainstorm next:
+
+1. **Training/evaluation distribution gap.** Both engines are trained and scored on the *same
+   simulator*, so high accuracy partly measures self-consistency. Real-world Windows activity
+   (compilers, OneDrive sync, search indexers, backup jobs) produces far noisier distributions.
+   The next honest step is a real-activity corpus (or a public malware-family replay dataset) for
+   evaluation, plus a gold standard of known ransomware captures.
+2. **Entropy is a noisy oracle.** Legitimate compressed/encrypted data (archives, disk images,
+   databases, full-disk encryption) is high-entropy by nature. False positives on those are
+   structural, not a tuning bug. Content-aware heuristics (container signatures, ciphertext
+   structure) or behavioral confirmation (process, not just bytes) are needed.
+3. **Process attribution is best-effort.** We match *currently open handles*; a ransomware process
+   that opens/closes files quickly can escape attribution. Real handle-tracing needs ETW/Sysmon
+   (elevated) or a kernel driver — out of scope for a portable tool.
+4. **Event-driven watching races.** Watchdog gives low latency but the snapshot-diff engine can
+   still miss a file that is created, encrypted, renamed, and deleted between two scans. USN Journal
+   enumeration would close this but is Windows-only and admin-heavy.
+5. **Adversary knowledge.** A targeted attacker who knows this tool can evade it: preserve mtimes
+   (caught only for hash-tracked files), stay under rate thresholds, avoid ransom notes, disable the
+   canary files, or encrypt only low-priority paths. Evasion-hardening (decoys in hidden spots,
+   cross-file entropy correlation, network shares) is an arms race.
+6. **ML drift & staleness.** The supervised model is frozen until retrained; a new family changes the
+   benign/malicious boundary. The drift monitor only *warns*; automated retraining pipelines and
+   online/continual learning are the real fix.
+7. **No response guarantees.** Kill/disable-share actions need admin rights and can themselves lock
+   the box out; recovery still depends on offline backups. The responder is deliberately
+   dry-run-safe, which means real protection requires an operator or SIEM/EDR integration.
+8. **Cost on large trees.** Snapshot-diff on hundreds of thousands of files every interval is heavy;
+   incremental/USN-based indexing and per-directory prioritisation are needed to scale.
+
+---
+
 ## Configuration
 
 Everything lives in `config.json`: watch directories with per-path priorities, honeypot locations,
@@ -178,14 +261,16 @@ thresholds, webhook URL (Slack/Teams/Discord compatible JSON POST), and emergenc
 
 ```
 ransomguard/           v1 package (config, filesystem/process/resource monitors,
-                       honeypots, detector, alerter)
-ransomguard_ml/        v2 ML package (feature extraction, runtime monitor)
+                       honeypots, event-driven watcher, detector, responder, alerter)
+ransomguard_ml/        v2 ML package (features, predict, explain, drift, runtime monitor)
 tools/                 simulation + evaluation harness (identical input for both versions)
+tests/                 pytest unit tests (19 tests)
 main.py                v1 entry point
-train_v2.py            v2 training
+train_v2.py            v2 training (calibration + IsolationForest + drift stats)
 run_v1_test.py         v1 evaluation
 run_v2_test.py         v2 evaluation
-run_compare.py         head-to-head comparison
+run_compare.py         head-to-head comparison (incl. --prod-rates stress scenario)
+.github/workflows/     CI (pytest + training/eval smoke tests)
 ```
 
 ---

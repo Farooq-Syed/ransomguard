@@ -27,6 +27,42 @@ class ProcessMonitor:
         self._io = {}
         self._ready = False
 
+    def attribute(self, batch: dict) -> list[dict]:
+        """Correlate processes with the files just modified/created.
+
+        Scans open file handles and matches them against the batch paths, so an
+        alert can name the actual writer process instead of just the file.
+        """
+        touched = [e.path for e in batch.get("modified", [])] + [e.path for e in batch.get("new", [])]
+        if not touched:
+            return []
+        touched_norm = {os.path.normcase(p) for p in touched}
+        writers = {}
+        try:
+            for proc in psutil.process_iter(["pid", "name"]):
+                procs = [proc]
+                try:
+                    procs.extend(proc.children(recursive=True))
+                except psutil.Error:
+                    pass
+                for p in procs:
+                    try:
+                        open_files = p.open_files()
+                    except (psutil.Error, OSError):
+                        continue
+                    count = sum(1 for f in open_files
+                                if os.path.normcase(f.path) in touched_norm)
+                    if count:
+                        try:
+                            pname = p.name()
+                        except psutil.Error:
+                            pname = "?"
+                        writers[pname] = writers.get(pname, 0) + count
+        except psutil.Error:
+            pass
+        return [{"type": "attribution", "name": k, "files": v}
+                for k, v in sorted(writers.items(), key=lambda kv: -kv[1])]
+
     def _iter(self):
         for p in psutil.process_iter(["pid", "name", "exe", "cmdline", "create_time"]):
             try:

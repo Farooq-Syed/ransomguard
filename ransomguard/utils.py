@@ -1,6 +1,7 @@
 """File analysis helpers: Shannon entropy, magic-byte signatures, priority tables."""
 from __future__ import annotations
 
+import hashlib
 import math
 import os
 import re
@@ -74,7 +75,13 @@ def shannon_entropy(data: bytes) -> float:
     return entropy
 
 
-def sample_entropy(path: str, max_bytes: int = 8192, chunks: int = 3) -> float:
+def sample_entropy(path: str, max_bytes: int = 8192, chunks: int = 6) -> float:
+    """Strided entropy sampling.
+
+    Reads `chunks` evenly-spaced slices and returns the maximum entropy, so that
+    partial encryption (encrypt 1 MB, skip 3 MB) cannot hide behind low-entropy
+    gaps. Any chunk that looks random is treated as a smoking gun.
+    """
     try:
         size = os.path.getsize(path)
         if size <= 0:
@@ -83,19 +90,31 @@ def sample_entropy(path: str, max_bytes: int = 8192, chunks: int = 3) -> float:
             with open(path, "rb") as fh:
                 return shannon_entropy(fh.read())
         chunk = max(256, max_bytes // chunks)
-        offset = max(0, (size - chunk) // 2)
-        tail = max(0, size - chunk)
+        sample = min(chunk, max(64, size // max(chunks, 1)))
+        offsets = sorted({0, size - sample} | {int(size * k / max(chunks, 1)) for k in range(chunks)})
         samples = []
         with open(path, "rb") as fh:
-            fh.seek(0)
-            samples.append(fh.read(chunk))
-            fh.seek(offset)
-            samples.append(fh.read(chunk))
-            fh.seek(tail)
-            samples.append(fh.read(chunk))
+            for off in offsets:
+                fh.seek(min(off, max(0, size - sample)))
+                samples.append(fh.read(sample))
         return max(shannon_entropy(s) for s in samples)
     except OSError:
         return 0.0
+
+
+def content_hash(path: str, max_bytes: int = 16384) -> str:
+    """Cheap integrity hash over the head + tail of a file for tamper detection."""
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as fh:
+            head = fh.read(max_bytes)
+            tail = b""
+            if size > max_bytes:
+                fh.seek(max(0, size - max_bytes))
+                tail = fh.read(max_bytes)
+        return hashlib.sha256(str(size).encode() + head + tail).hexdigest()
+    except OSError:
+        return ""
 
 
 def detect_magic(path: str) -> str | None:
@@ -129,11 +148,11 @@ def get_ext(name: str) -> str:
 
 
 def is_target_ext(ext: str) -> bool:
-    return ext in TARGET_EXTENSIONS
+    return ext.lower() in TARGET_EXTENSIONS
 
 
 def is_high_value_ext(ext: str) -> bool:
-    return ext in HIGH_VALUE_EXTENSIONS
+    return ext.lower() in HIGH_VALUE_EXTENSIONS
 
 
 def is_known_ransomware_ext(full_name: str) -> str | None:
