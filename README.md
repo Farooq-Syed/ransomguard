@@ -1,5 +1,9 @@
 # RansomGuard
 
+[![CI](https://github.com/Farooq-Syed/ransomguard/actions/workflows/ci.yml/badge.svg)](https://github.com/Farooq-Syed/ransomguard/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 Early-warning ransomware detector for a single machine. Continuously watches your data files,
 system-critical files, decoy "canary" files, running processes and system resources, and raises
 alerts when behaviour matches how ransomware works — before the whole disk is encrypted.
@@ -139,6 +143,12 @@ encode real signal: `max_entropy_mod`, `n_high_value_mod`, `mean_entropy_mod`, `
 `n_target_mod`, `n_crypto_procs`.
 
 ### Head-to-head results (60 benign + 60 ransomware sessions each, seed 1337)
+
+![Walk-forward detection](results/walkforward_det.png)
+
+*Walk-forward (temporal) evaluation: detection timing across held-out windows — both engines flag
+ransomware before encryption completes, with v2 holding a tighter margin on noisy-but-benign
+workloads.*
 
 **Clean scenario** (clean benign + classic attacks, default thresholds) — both engines:
 
