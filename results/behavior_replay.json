@@ -1,0 +1,147 @@
+{
+  "scenarios": 12,
+  "detected": 12,
+  "detection_rate": 1.0,
+  "detected_within_attack_windows": 12,
+  "mean_latency_windows": 0.0,
+  "by_style": {
+    "classic": {
+      "n": 3,
+      "detected": 3
+    },
+    "stealth": {
+      "n": 3,
+      "detected": 3
+    },
+    "novel_ext": {
+      "n": 3,
+      "detected": 3
+    },
+    "wiper": {
+      "n": 3,
+      "detected": 3
+    }
+  },
+  "results": [
+    {
+      "style": "classic",
+      "seed": 1000,
+      "attack_start": 2,
+      "leading_windows": 2,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 13,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "stealth",
+      "seed": 1001,
+      "attack_start": 2,
+      "leading_windows": 2,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 13,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "novel_ext",
+      "seed": 1002,
+      "attack_start": 2,
+      "leading_windows": 2,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 13,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "wiper",
+      "seed": 1003,
+      "attack_start": 3,
+      "leading_windows": 3,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 12,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "classic",
+      "seed": 1007,
+      "attack_start": 2,
+      "leading_windows": 2,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 13,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "stealth",
+      "seed": 1008,
+      "attack_start": 3,
+      "leading_windows": 3,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 13,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "novel_ext",
+      "seed": 1009,
+      "attack_start": 2,
+      "leading_windows": 2,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 13,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "wiper",
+      "seed": 1010,
+      "attack_start": 2,
+      "leading_windows": 2,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 13,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "classic",
+      "seed": 1014,
+      "attack_start": 2,
+      "leading_windows": 2,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 14,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "stealth",
+      "seed": 1015,
+      "attack_start": 3,
+      "leading_windows": 3,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 13,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "novel_ext",
+      "seed": 1016,
+      "attack_start": 2,
+      "leading_windows": 2,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 13,
+      "caught_in_attack_windows": true
+    },
+    {
+      "style": "wiper",
+      "seed": 1017,
+      "attack_start": 3,
+      "leading_windows": 3,
+      "detected": true,
+      "latency_windows": 0,
+      "alerts": 12,
+      "caught_in_attack_windows": true
+    }
+  ]
+}

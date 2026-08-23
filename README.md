@@ -22,6 +22,26 @@ Two detection engines, comparable side by side:
 Both share the same scanning core (filesystem snapshot/diff, honeypots, process and resource
 monitors) — only the scoring differs.
 
+## Contained ransomware-behavior replay (safe, many scenarios)
+
+To exercise the detector on many distinct ransomware *behaviors* without any real malware
+or risk of spread, `run_behavior_replay.py` replays a grid of scenarios (classic, stealth,
+novel_ext, wiper) against the v1 detector. Each scenario is **only file I/O inside an
+isolated temp sandbox** — writes, renames with ransomware extensions, note drops, and
+event-dict process signals. There is no payload, no persistence, no network activity, and
+nothing that runs outside the sandbox (deleted after the run). It therefore **cannot
+spread**.
+
+Current result (`results/behavior_replay.json`): **12/12 (100%) detected** across all
+styles, all within the attack windows, at 0-window latency. This is a fast, honest
+demonstration on the in-repo simulator; the harder, out-of-distribution generalization
+tests are the [walk-forward](FINDINGS.md) and near-real suites.
+
+```bash
+python run_behavior_replay.py            # 12 built-in scenarios
+python run_behavior_replay.py --rounds 20
+```
+
 > **Correction note.** An earlier draft reported that v2 sustained 5/5 false alarms on the
 > canonical seed-7 walk-forward fold 9. That result was traced to a **training data-flow bug**
 > (`extract_session` reused a config rooted at the first session's directory for every session, so
