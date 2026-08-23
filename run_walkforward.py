@@ -67,13 +67,26 @@ def main() -> None:
             cfg = make_test_config(s["sandbox"].root, "", low_rate=False)
             r1.append(evaluate_v1(s, cfg))
             r2.append(evaluate_v2(s, payload, cfg))
-        n_r = max(1, sum(1 for r in r1 if r["kind"] == "ransomware"))
-        n_b = max(1, sum(1 for r in r1 if r["kind"] == "benign"))
-        det1 = sum(1 for r in r1 if r["detected"]) / n_r
-        det2 = sum(1 for r in r2 if r["detected"]) / n_r
-        fp1 = sum(1 for r in r1 if r["false_alarm"]) / n_b
-        fp2 = sum(1 for r in r2 if r["false_alarm"]) / n_b
-        return {"det1": det1, "det2": det2, "fp1": fp1, "fp2": fp2}
+        n_r = sum(1 for r in r1 if r["kind"] == "ransomware")
+        n_b = sum(1 for r in r1 if r["kind"] == "benign")
+        if n_r == 0 or n_b == 0:
+            raise ValueError("Each walk-forward test bucket must contain ransomware and benign sessions.")
+        det1_count = sum(1 for r in r1 if r["detected"])
+        det2_count = sum(1 for r in r2 if r["detected"])
+        fp1_count = sum(1 for r in r1 if r["false_alarm"])
+        fp2_count = sum(1 for r in r2 if r["false_alarm"])
+        return {
+            "det1": det1_count / n_r,
+            "det2": det2_count / n_r,
+            "fp1": fp1_count / n_b,
+            "fp2": fp2_count / n_b,
+            "ransomware_sessions": n_r,
+            "benign_sessions": n_b,
+            "v1_detected_sessions": det1_count,
+            "v2_detected_sessions": det2_count,
+            "v1_false_alarm_sessions": fp1_count,
+            "v2_false_alarm_sessions": fp2_count,
+        }
 
     folds = []
     test_bucket = args.train_window
@@ -95,6 +108,12 @@ def main() -> None:
             "v2_detection": round(m["det2"], 3),
             "v1_fp": round(m["fp1"], 3),
             "v2_fp": round(m["fp2"], 3),
+            "ransomware_sessions": m["ransomware_sessions"],
+            "benign_sessions": m["benign_sessions"],
+            "v1_detected_sessions": m["v1_detected_sessions"],
+            "v2_detected_sessions": m["v2_detected_sessions"],
+            "v1_false_alarm_sessions": m["v1_false_alarm_sessions"],
+            "v2_false_alarm_sessions": m["v2_false_alarm_sessions"],
         })
         print(f"  v1 det={m['det1'] * 100:.0f}% fp={m['fp1'] * 100:.0f}% | "
               f"v2 det={m['det2'] * 100:.0f}% fp={m['fp2'] * 100:.0f}%")

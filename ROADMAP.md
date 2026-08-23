@@ -51,7 +51,7 @@ production, the evaluation itself must be re-grounded.
 - **Continual / online learning with drift gating.** The frozen model is the source of the
   walk-forward FP instability. Add automatic retraining when the drift monitor trips, using only
   operator-confirmed data.
-  - Acceptance: the fold-9 (seed 7) 25% FP scenario self-heals within one retrain cycle.
+  - Acceptance: the fold-9 (seed 7) 5/5 benign false-alarm failure self-heals within one retrain cycle.
 - **Temporal sequence modelling.** Per-window classification ignores ramp-up patterns. Evaluate an
   LSTM/GRU (or a feature-streak encoder) over consecutive windows for slow-trickle attacks.
   - Acceptance: a 1-file/window slow attack is flagged by streak of anomalous-but-below-threshold

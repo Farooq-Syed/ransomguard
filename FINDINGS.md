@@ -12,7 +12,7 @@ scripts listed. See `README.md` for how to run them and `ROADMAP.md` for what's 
 | Compare — aggressive thresholds | noisy benign + bursts | v1 FP **91.7%**, v2 FP **0%** |
 | Compare — production thresholds | same, realistic rate limits | both 0% FP |
 | Near-real (seeds 2024/2025) | shifted distribution + novel attack styles | both 100% detection on all styles, 0% FP |
-| Walk-forward (seeds 7/11) | future buckets, evolving distribution | both 100% detection; v1 FP stable 0%, v2 FP 0–25% |
+| Walk-forward (canonical seed 7) | future buckets, evolving distribution | both 100% detection; v1 FP stable 0%, v2 reaches 5/5 benign false alarms in fold 9 |
 
 ## Key findings
 
@@ -26,12 +26,13 @@ scripts listed. See `README.md` for how to run them and `ROADMAP.md` for what's 
    At aggressive rate thresholds, v1's mass-modification heuristic cannot tell a folder-copy burst
    from mass encryption (91.7% FP); v2, having seen bursts in training, stays at 0%.
 
-3. **v1 is more stable over time; v2 is more accurate when retrained.** The walk-forward test shows
-   v2's false-positive rate on *future* noisy-benign windows is intermittent — a 25% spike in one
-   fold (seed 7) that disappears once the model is retrained on the new regime (seed 11: 0% on all
-   folds). v1's deterministic rules never drifted from 0% FP. This is textbook ML
-   distribution-shift/staleness and is the strongest argument for the drift monitor + periodic
-   retraining, and for keeping v1 as a stable baseline.
+3. **v1 is more stable over time; v2 requires drift response.** The canonical walk-forward rerun shows
+   v2's false-positive rate on *future* noisy-benign windows can fail catastrophically — 5/5 benign
+   sessions alerted in fold 9 after the distribution shift, while v1 remained at 0/5 false alarms.
+   v1's deterministic rules remained at 0% FP. This is an internal example of ML
+   distribution-shift/staleness and is the strongest argument for testing drift-triggered
+   retraining, and for keeping v1 as a stable baseline. Retraining recovery is a planned
+   experiment, not a result claimed by the canonical run.
 
 4. **Entropy is necessary but not sufficient.** The entropy-evading `wiper` variant (zero-fills,
    no renames, no notes) is caught — but by **honeypot canaries, mass deletions, and process
@@ -76,6 +77,9 @@ scripts listed. See `README.md` for how to run them and `ROADMAP.md` for what's 
 |---|---|---|---|---|---|
 | 5 | + novel_ext | 100% | 100% | 0% | 0% |
 | 7 | + wiper | 100% | 100% | 0% | 0% |
-| 9 | + wiper, heaviest noise | 100% | 100% | 0% | 0–25% (seed-dependent) |
+| 9 | + wiper, heaviest noise | 7/7 | 7/7 | 0/5 | 5/5 |
+
+The fold denominators are small, so 100% is not a precise population estimate. The result is still
+an unambiguous internal failure case: every benign session in that held-forward bucket alerted.
 
 Charts saved under `results/` (`nearreal*.png`, `walkforward_det*.png`, `walkforward_fp*.png`).

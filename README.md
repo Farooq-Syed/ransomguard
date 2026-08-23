@@ -1,5 +1,9 @@
 # RansomGuard
 
+> External-validation status and the safe real-family replay protocol are documented
+> in [EXTERNAL_VALIDATION.md](EXTERNAL_VALIDATION.md). Current performance numbers are
+> simulator results, not real-family detection rates.
+
 [![CI](https://github.com/Farooq-Syed/ransomguard/actions/workflows/ci.yml/badge.svg)](https://github.com/Farooq-Syed/ransomguard/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-non--commercial-purple)
@@ -14,6 +18,10 @@ Two detection engines, comparable side by side:
 |---|---|---|
 | **v1** | Rule/heuristic scoring engine | 100% detection, 0% FP (synthetic suite) |
 | **v2** | ML detector: calibrated RandomForest + IsolationForest anomaly layer + streak logic + LIME explanations + drift monitor | Trained on 800 sessions; 100% detection, 0% FP; more precise than v1 on noisy-but-benign workloads |
+
+The 0% v2 false-positive result above applies to the matched standard/near-real suites. In the
+canonical seed-7 walk-forward run, v2 fails under the final distribution shift with 5 false alarms
+among 5 benign sessions; see the exact fold counts below.
 
 Both share the same scanning core (filesystem snapshot/diff, honeypots, process and resource
 monitors) — only the scoring differs.
@@ -240,14 +248,15 @@ Run: `python run_walkforward.py [--seed N]`  (results → `results/walkforward*.
 |---|---|---|---|---|---|
 | 5 | +novel_ext | 100% | 100% | 0% | 0% |
 | 7 | +wiper | 100% | 100% | 0% | 0% |
-| 9 | +wiper (heaviest noise) | 100% | 100% | 0% | **0–25%** (seed-dependent) |
+| 9 | +wiper (heaviest noise) | 7/7 | 7/7 | 0/5 | **5/5** |
 
 **Key finding:** detection stays at 100% for both engines on every future bucket, but v2's
-false-positive rate on future noisy-benign windows is *unstable* — a single fold across seeds shows
-a 25% spike (seed 7, fold 9) while v1 is deterministically 0%. This is textbook ML
-distribution-shift/staleness: once v2 is retrained on the new regime it recovers (seed 11: 0% on all
-folds). It is exactly why the drift monitor and periodic retraining exist — and why v1 remains a
-valuable, stable baseline for an environment whose "normal" changes over time.
+false-positive rate on future noisy-benign windows is *unstable* — the canonical seed-7 fold 9
+run alerts on all 5 benign sessions while v1 alerts on none. The denominator is small, so this is
+reported as 5/5 rather than a population estimate. This is textbook ML
+distribution-shift/staleness. A drift-triggered retraining recovery experiment remains on the
+roadmap; it is not claimed as completed here. The failure is why v1 remains a valuable, stable
+baseline for an environment whose "normal" changes over time.
 
 ### Standalone ransomware example
 
