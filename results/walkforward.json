@@ -135,13 +135,13 @@
       "v1_detection": 1.0,
       "v2_detection": 1.0,
       "v1_fp": 0.0,
-      "v2_fp": 1.0,
+      "v2_fp": 0.0,
       "ransomware_sessions": 7,
       "benign_sessions": 5,
       "v1_detected_sessions": 7,
       "v2_detected_sessions": 7,
       "v1_false_alarm_sessions": 0,
-      "v2_false_alarm_sessions": 5
+      "v2_false_alarm_sessions": 0
     }
   ]
 }

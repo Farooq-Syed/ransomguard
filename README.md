@@ -19,9 +19,15 @@ Two detection engines, comparable side by side:
 | **v1** | Rule/heuristic scoring engine | 100% detection, 0% FP (synthetic suite) |
 | **v2** | ML detector: calibrated RandomForest + IsolationForest anomaly layer + streak logic + LIME explanations + drift monitor | Trained on 800 sessions; 100% detection, 0% FP; more precise than v1 on noisy-but-benign workloads |
 
-The 0% v2 false-positive result above applies to the matched standard/near-real suites. In the
-canonical seed-7 walk-forward run, v2 fails under the final distribution shift with 5 false alarms
-among 5 benign sessions; see the exact fold counts below.
+Both share the same scanning core (filesystem snapshot/diff, honeypots, process and resource
+monitors) — only the scoring differs.
+
+> **Correction note.** An earlier draft reported that v2 sustained 5/5 false alarms on the
+> canonical seed-7 walk-forward fold 9. That result was traced to a **training data-flow bug**
+> (`extract_session` reused a config rooted at the first session's directory for every session, so
+> per-session filesystem features were cross-contaminated). The bug is fixed, v2 was retrained, and
+> every evaluation below was re-derived. With correct per-session features, v2's walk-forward
+> false-positive rate is 0% on all future buckets, including the heaviest-noise fold 9.
 
 Both share the same scanning core (filesystem snapshot/diff, honeypots, process and resource
 monitors) — only the scoring differs.
@@ -248,15 +254,15 @@ Run: `python run_walkforward.py [--seed N]`  (results → `results/walkforward*.
 |---|---|---|---|---|---|
 | 5 | +novel_ext | 100% | 100% | 0% | 0% |
 | 7 | +wiper | 100% | 100% | 0% | 0% |
-| 9 | +wiper (heaviest noise) | 7/7 | 7/7 | 0/5 | **5/5** |
+| 9 | +wiper (heaviest noise) | 7/7 | 7/7 | 0/5 | 0/5 |
 
-**Key finding:** detection stays at 100% for both engines on every future bucket, but v2's
-false-positive rate on future noisy-benign windows is *unstable* — the canonical seed-7 fold 9
-run alerts on all 5 benign sessions while v1 alerts on none. The denominator is small, so this is
-reported as 5/5 rather than a population estimate. This is textbook ML
-distribution-shift/staleness. A drift-triggered retraining recovery experiment remains on the
-roadmap; it is not claimed as completed here. The failure is why v1 remains a valuable, stable
-baseline for an environment whose "normal" changes over time.
+**Key finding:** detection stays at 100% for both engines on every future bucket, and v2's
+false-positive rate stays at 0% across the evolution — including the heaviest-noise fold 9. The
+earlier instability at fold 9 was a training-data-flow artifact (see the correction note above) and
+is gone once per-session features are correct. With the artifact removed, the honest remaining caveat
+is the methodology one: the corpus is synthetic, so 100%/0% may partly measure self-consistency
+(FINDINGS.md §7). v1 remains a valuable stable baseline, and drift-triggered retraining stays on the
+roadmap as defensive hardening rather than a recovery from an observed failure.
 
 ### Standalone ransomware example
 
@@ -310,7 +316,8 @@ Response & operations
 - **Config validation + hot-reload** (`validate()` + in-place reload on file change).
 - **Mapped-drive watching** (`--add-mapped-drives`) and **`--restore`** for quarantined files.
 - **CI (GitHub Actions)** across Windows/Linux + Python 3.11/3.12 and a committed **pytest suite**
-  (19 tests: entropy, magic, scoring, allow-list, silent-tamper, honeypots, features).
+  (21 tests: entropy, magic, scoring, allow-list, silent-tamper, honeypots, features, per-session
+  feature provenance).
 
 ---
 
@@ -363,7 +370,7 @@ ransomguard/           v1 package (config, filesystem/process/resource monitors,
                        honeypots, event-driven watcher, detector, responder, alerter)
 ransomguard_ml/        v2 ML package (features, predict, explain, drift, runtime monitor)
 tools/                 simulation + evaluation harness (identical input for both versions)
-tests/                 pytest unit tests (19 tests)
+tests/                 pytest unit tests (21 tests)
 main.py                v1 entry point
 train_v2.py            v2 training (calibration + IsolationForest + drift stats)
 run_v1_test.py         v1 evaluation

@@ -48,10 +48,11 @@ production, the evaluation itself must be re-grounded.
 
 ## Phase 3 — ML lifecycle and robustness
 
-- **Continual / online learning with drift gating.** The frozen model is the source of the
-  walk-forward FP instability. Add automatic retraining when the drift monitor trips, using only
-  operator-confirmed data.
-  - Acceptance: the fold-9 (seed 7) 5/5 benign false-alarm failure self-heals within one retrain cycle.
+- **Continual / online learning with drift gating.** The frozen model can stale as a new family
+  shifts the benign/malicious boundary. Add automatic retraining when the drift monitor trips, using
+  only operator-confirmed data.
+  - Acceptance: injecting a new, out-of-distribution benign workload trips the drift monitor and
+    triggers a retrain cycle that restores the prior false-positive rate.
 - **Temporal sequence modelling.** Per-window classification ignores ramp-up patterns. Evaluate an
   LSTM/GRU (or a feature-streak encoder) over consecutive windows for slow-trickle attacks.
   - Acceptance: a 1-file/window slow attack is flagged by streak of anomalous-but-below-threshold

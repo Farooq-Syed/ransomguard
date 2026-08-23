@@ -13,11 +13,11 @@
   "honeypot_bait": false,
   "honeypot_dirs": [
     {
-      "path": "C:/Users/Farooq Syed/Documents",
+      "path": "~/Documents",
       "count": 3
     },
     {
-      "path": "C:/Users/Farooq Syed/Desktop",
+      "path": "~/Desktop",
       "count": 2
     }
   ],
@@ -75,47 +75,47 @@
   ],
   "watch_dirs": [
     {
-      "path": "C:/Users/Farooq Syed/Documents",
+      "path": "~/Documents",
       "priority": 70,
       "recursive": true
     },
     {
-      "path": "C:/Users/Farooq Syed/Desktop",
+      "path": "~/Desktop",
       "priority": 70,
       "recursive": true
     },
     {
-      "path": "C:/Users/Farooq Syed/Downloads",
+      "path": "~/Downloads",
       "priority": 40,
       "recursive": true
     },
     {
-      "path": "C:/Users/Farooq Syed/Pictures",
+      "path": "~/Pictures",
       "priority": 55,
       "recursive": true
     },
     {
-      "path": "C:/Users/Farooq Syed/Videos",
+      "path": "~/Videos",
       "priority": 55,
       "recursive": true
     },
     {
-      "path": "C:/Users/Farooq Syed/.ssh",
+      "path": "~/.ssh",
       "priority": 95,
       "recursive": true
     },
     {
-      "path": "C:/Users/Farooq Syed/.gnupg",
+      "path": "~/.gnupg",
       "priority": 95,
       "recursive": true
     },
     {
-      "path": "C:/Users/Farooq Syed/.aws",
+      "path": "~/.aws",
       "priority": 95,
       "recursive": true
     },
     {
-      "path": "C:/Users/Farooq Syed/.config",
+      "path": "~/.config",
       "priority": 60,
       "recursive": true
     },
@@ -215,6 +215,6 @@
   },
   "webhook_url": "",
   "log_file": "ransomguard.log",
-  "quarantine_dir": "C:/Users/Farooq Syed/ransomguard_quarantine",
+  "quarantine_dir": "~/ransomguard_quarantine",
   "auto_freeze": false
 }

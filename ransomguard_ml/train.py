@@ -20,9 +20,18 @@ from ransomguard_ml.features import FEATURE_NAMES, extract_features
 from tools.harness import make_test_config
 
 
-def extract_session(session: dict, config) -> list[tuple[dict, int]]:
+def extract_session(session: dict, config=None) -> list[tuple[dict, int]]:
+    """Extract one session's window features against THAT session's own sandbox.
+
+    A per-session ``config`` is required so the FileSystemMonitor and
+    HoneypotManager watch this session's directory rather than being shared
+    across the whole corpus. Passing a config built from a *different*
+    session's root silently contaminates the filesystem features.
+    """
     sandbox = session["sandbox"]
     attack_start = session["attack_start"]
+    if config is None:
+        config = make_test_config(sandbox.root, "", low_rate=False)
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         manifest = os.path.join(tmp, "honey.json")
@@ -39,7 +48,7 @@ def extract_session(session: dict, config) -> list[tuple[dict, int]]:
     return rows
 
 
-def build_dataset(sessions: list[dict], config) -> tuple[np.ndarray, np.ndarray]:
+def build_dataset(sessions: list[dict], config=None) -> tuple[np.ndarray, np.ndarray]:
     X, y = [], []
     for i, s in enumerate(sessions):
         for feats, label in extract_session(s, config):
@@ -83,8 +92,7 @@ def fit_models(X: np.ndarray, y: np.ndarray, verbose: bool = True):
 
 
 def train_and_save(sessions: list[dict], out_path: str | Path, verbose: bool = True):
-    config = make_test_config(sessions[0]["sandbox"].root, "", low_rate=False)
-    X, y = build_dataset(sessions, config)
+    X, y = build_dataset(sessions)
     model, iforest, outlier_threshold, benign_stats = fit_models(X, y, verbose=verbose)
     payload = {
         "model": model,
