@@ -132,6 +132,7 @@ python run_compare.py --seed 1337            # clean scenario
 python run_compare.py --seed 1337 --prod-rates   # noisy benign + stealth
 python run_nearreal.py                       # shifted distribution, novel styles (charts in results/)
 python run_walkforward.py --seed 7           # temporal generalization (charts in results/)
+python simulate_ransomware_example.py        # one standalone ransomware example run
 ```
 
 ### v2 model validation (20% holdout windows, 400 benign + 400 ransomware training sessions)
@@ -166,6 +167,18 @@ workloads.*
 |---|---|---|
 | Detection rate (classic + stealth) | 100.0% (60/60) | 100.0% (60/60) |
 | False-positive rate | **91.7%** (55/60) | **0.0%** (0/60) |
+
+**Quick reproducibility check** (20 benign + 20 ransomware sessions, seed 2026):
+
+| Metric | v1 (heuristics) | v2 (ML) |
+|---|---|---|
+| Detection rate | 100.0% (20/20) | 100.0% (20/20) |
+| False-positive rate | 75.0% (15/20) | 0.0% (0/20) |
+
+This smaller run is not the headline experiment, but it is useful for reviewers:
+it reproduces the same core claim quickly on a laptop-sized workload. The main
+difference between the engines is not missed attacks in the simulator but
+precision under noisy benign activity.
 
 *Production-like rate thresholds (warn 100/min, critical 600/min)*
 
@@ -205,6 +218,11 @@ Run: `python run_nearreal.py`  (results → `results/nearreal*.json`, `results/n
 | wiper (entropy-evading) | 100% | 100% |
 | benign FP rate | 0.0% | 0.0% |
 
+A smaller quick run (`--n-benign 20 --n-ransom 20 --train-benign 80 --train-ransom 80`)
+reproduced the same qualitative result across `classic`, `stealth`, `novel_ext`,
+and `wiper`: both engines detected every attack style and neither fired on the
+benign sessions.
+
 Reproducible for seeds 2024 and 2025. Notable: the wiper is *not* caught by entropy — it is caught
 by **honeypot canaries, mass deletions, and process signals**. A wiper that also avoided decoys
 would likely slip through (known blind spot, see challenges #2/#5).
@@ -230,6 +248,20 @@ a 25% spike (seed 7, fold 9) while v1 is deterministically 0%. This is textbook 
 distribution-shift/staleness: once v2 is retrained on the new regime it recovers (seed 11: 0% on all
 folds). It is exactly why the drift monitor and periodic retraining exist — and why v1 remains a
 valuable, stable baseline for an environment whose "normal" changes over time.
+
+### Standalone ransomware example
+
+For a single self-contained example run without the larger benchmark harness, use:
+
+```bash
+python simulate_ransomware_example.py --style classic
+python simulate_ransomware_example.py --style wiper
+```
+
+This creates one throwaway sandbox, drives the real detector window-by-window,
+prints the alerts that fired, and exits non-zero if no `HIGH`/`CRITICAL`/`PANDEMIC`
+alert was raised. It is the fastest demonstration path for a thesis appendix,
+recommender packet, or live walkthrough.
 
 ---
 

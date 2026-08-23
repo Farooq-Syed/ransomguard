@@ -1,0 +1,28 @@
+{
+  "seed": 2026,
+  "styles": [
+    "classic",
+    "stealth",
+    "novel_ext",
+    "wiper"
+  ],
+  "n_sessions": 40,
+  "detection_by_style": {
+    "v1": {
+      "novel_ext": 1.0,
+      "wiper": 1.0,
+      "stealth": 1.0,
+      "classic": 1.0
+    },
+    "v2": {
+      "novel_ext": 1.0,
+      "wiper": 1.0,
+      "stealth": 1.0,
+      "classic": 1.0
+    }
+  },
+  "false_positive_rate": {
+    "v1": 0.0,
+    "v2": 0.0
+  }
+}
